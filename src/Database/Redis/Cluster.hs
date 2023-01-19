@@ -1,8 +1,8 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE LambdaCase         #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE TupleSections      #-}
+{-# LANGUAGE ViewPatterns       #-}
 module Database.Redis.Cluster
   ( Connection(..)
   , NodeRole(..)
@@ -17,25 +17,30 @@ module Database.Redis.Cluster
   , nodes
 ) where
 
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Char8 as Char8
-import qualified Data.IORef as IOR
-import Data.List(nub, sortBy, find)
-import Data.Map(fromListWith, assocs)
-import Data.Function(on)
-import Control.Exception(Exception, throwIO, BlockedIndefinitelyOnMVar(..), catches, Handler(..))
-import Control.Concurrent.MVar(MVar, newMVar, readMVar, modifyMVar, modifyMVar_)
-import Control.Monad(zipWithM, when, replicateM)
-import Database.Redis.Cluster.HashSlot(HashSlot, keyToSlot)
-import qualified Database.Redis.ConnectionContext as CC
-import qualified Data.HashMap.Strict as HM
-import qualified Data.IntMap.Strict as IntMap
+import           Control.Concurrent.MVar          (MVar, modifyMVar,
+                                                   modifyMVar_, newMVar,
+                                                   readMVar)
+import           Control.Exception                (BlockedIndefinitelyOnMVar (..),
+                                                   Exception, Handler (..),
+                                                   catches, throwIO)
+import           Control.Monad                    (replicateM, when, zipWithM)
+import qualified Data.ByteString                  as B
+import qualified Data.ByteString.Char8            as Char8
+import           Data.Function                    (on)
+import qualified Data.HashMap.Strict              as HM
+import qualified Data.IORef                       as IOR
+import qualified Data.IntMap.Strict               as IntMap
+import           Data.List                        (find, nub, sortBy)
+import           Data.Map                         (assocs, fromListWith)
 import           Data.Typeable
+import           Database.Redis.Cluster.HashSlot  (HashSlot, keyToSlot)
+import qualified Database.Redis.ConnectionContext as CC
 import qualified Scanner
-import System.IO.Unsafe(unsafeInterleaveIO)
+import           System.IO.Unsafe                 (unsafeInterleaveIO)
 
-import Database.Redis.Protocol(Reply(Error), renderRequest, reply)
-import qualified Database.Redis.Cluster.Command as CMD
+import qualified Database.Redis.Cluster.Command   as CMD
+import           Database.Redis.Protocol          (Reply (Error), renderRequest,
+                                                   reply)
 
 -- This module implements a clustered connection whilst maintaining
 -- compatibility with the original Hedis codebase. In particular it still
@@ -162,11 +167,11 @@ requestPipelined refreshAction conn@(Connection _ pipelineVar shardMapVar _) nex
 
 isMulti :: [B.ByteString] -> Bool
 isMulti ("MULTI" : _) = True
-isMulti _ = False
+isMulti _             = False
 
 isExec :: [B.ByteString] -> Bool
 isExec ("EXEC" : _) = True
-isExec _ = False
+isExec _            = False
 
 data PendingRequest = PendingRequest Int [B.ByteString]
 data CompletedRequest = CompletedRequest Int [B.ByteString] Reply
@@ -300,10 +305,10 @@ nodeConnForHashSlot shardMapVar conn exception hashSlot = do
     (ShardMap shardMap) <- hasLocked $ readMVar shardMapVar
     node <-
         case IntMap.lookup (fromEnum hashSlot) shardMap of
-            Nothing -> throwIO exception
+            Nothing               -> throwIO exception
             Just (Shard master _) -> return master
     case HM.lookup (nodeId node) nodeConns of
-        Nothing -> throwIO exception
+        Nothing        -> throwIO exception
         Just nodeConn' -> return nodeConn'
 
 hashSlotForKeys :: Exception e => e -> [B.ByteString] -> IO HashSlot
@@ -311,22 +316,22 @@ hashSlotForKeys exception keys =
     case nub (keyToSlot <$> keys) of
         -- If none of the commands contain a key we can send them to any
         -- node. Let's pick the first one.
-        [] -> return 0
+        []         -> return 0
         [hashSlot] -> return hashSlot
-        _ -> throwIO $ exception
+        _          -> throwIO $ exception
 
 requestKeys :: CMD.InfoMap -> [B.ByteString] -> IO [B.ByteString]
 requestKeys infoMap request =
     case CMD.keysForRequest infoMap request of
         Nothing -> throwIO $ UnsupportedClusterCommandException request
-        Just k -> return k
+        Just k  -> return k
 
 askingRedirection :: Reply -> Maybe (Host, Port)
 askingRedirection (Error errString) = case Char8.words errString of
     ["ASK", _, hostport] -> case Char8.split ':' hostport of
        [host, portString] -> case Char8.readInt portString of
          Just (port,"") -> Just (Char8.unpack host, port)
-         _ -> Nothing
+         _              -> Nothing
        _ -> Nothing
     _ -> Nothing
 askingRedirection _ = Nothing
@@ -334,7 +339,7 @@ askingRedirection _ = Nothing
 moved :: Reply -> Bool
 moved (Error errString) = case Char8.words errString of
     "MOVED":_ -> True
-    _ -> False
+    _         -> False
 moved _ = False
 
 
@@ -354,13 +359,13 @@ nodeConnectionForCommand conn@(Connection nodeConns _ _ infoMap) (ShardMap shard
             keys <- requestKeys infoMap request
             hashSlot <- hashSlotForKeys (CrossSlotException [request]) keys
             node <- case IntMap.lookup (fromEnum hashSlot) shardMap of
-                Nothing -> throwIO $ MissingNodeException request
+                Nothing               -> throwIO $ MissingNodeException request
                 Just (Shard master _) -> return master
             maybe (throwIO $ MissingNodeException request) (return . return) (HM.lookup (nodeId node) nodeConns)
     where
         allNodes =
             case allMasterNodes conn (ShardMap shardMap) of
-                Nothing -> throwIO $ MissingNodeException request
+                Nothing        -> throwIO $ MissingNodeException request
                 Just allNodes' -> return allNodes'
 
 allMasterNodes :: Connection -> ShardMap -> Maybe [NodeConnection]
@@ -384,7 +389,7 @@ requestNode (NodeConnection ctx lastRecvRef _) requests = do
         maybeLastRecv <- IOR.readIORef lastRecvRef
         scanResult <- case maybeLastRecv of
             Just lastRecv -> Scanner.scanWith (CC.recv ctx) reply lastRecv
-            Nothing -> Scanner.scanWith (CC.recv ctx) reply B.empty
+            Nothing       -> Scanner.scanWith (CC.recv ctx) reply B.empty
 
         case scanResult of
           Scanner.Fail{}       -> CC.errConnClosed

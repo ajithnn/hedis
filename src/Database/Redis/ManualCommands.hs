@@ -1,19 +1,22 @@
-{-# LANGUAGE CPP, OverloadedStrings, RecordWildCards, FlexibleContexts #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 module Database.Redis.ManualCommands where
 
-import Prelude hiding (min, max)
-import Data.ByteString (ByteString, empty, append)
-import qualified Data.ByteString.Char8 as Char8
-import qualified Data.ByteString as BS
-import Data.Maybe (maybeToList, catMaybes)
+import           Data.ByteString                (ByteString, append, empty)
+import qualified Data.ByteString                as BS
+import qualified Data.ByteString.Char8          as Char8
+import           Data.Maybe                     (catMaybes, maybeToList)
+import           Prelude                        hiding (max, min)
 #if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup ((<>))
+import           Data.Semigroup                 ((<>))
 #endif
-import Database.Redis.Core
-import Database.Redis.Protocol
-import Database.Redis.Types
 import qualified Database.Redis.Cluster.Command as CMD
+import           Database.Redis.Core
+import           Database.Redis.Protocol
+import           Database.Redis.Types
 
 
 objectRefcount
@@ -60,16 +63,16 @@ getType key = sendRequest ["TYPE", encode key]
 
 -- |A single entry from the slowlog.
 data Slowlog = Slowlog
-    { slowlogId        :: Integer
+    { slowlogId              :: Integer
       -- ^ A unique progressive identifier for every slow log entry.
-    , slowlogTimestamp :: Integer
+    , slowlogTimestamp       :: Integer
       -- ^ The unix timestamp at which the logged command was processed.
-    , slowlogMicros    :: Integer
+    , slowlogMicros          :: Integer
       -- ^ The amount of time needed for its execution, in microseconds.
-    , slowlogCmd       :: [ByteString]
+    , slowlogCmd             :: [ByteString]
       -- ^ The command and it's arguments.
     , slowlogClientIpAndPort :: Maybe ByteString
-    , slowlogClientName :: Maybe ByteString
+    , slowlogClientName      :: Maybe ByteString
     } deriving (Show, Eq)
 
 instance RedisResult Slowlog where
@@ -228,11 +231,11 @@ zrevrangebyscoreWithscoresLimit key min max offset count =
 
 -- |Options for the 'sort' command.
 data SortOpts = SortOpts
-    { sortBy     :: Maybe ByteString
-    , sortLimit  :: (Integer,Integer)
-    , sortGet    :: [ByteString]
-    , sortOrder  :: SortOrder
-    , sortAlpha  :: Bool
+    { sortBy    :: Maybe ByteString
+    , sortLimit :: (Integer,Integer)
+    , sortGet   :: [ByteString]
+    , sortOrder :: SortOrder
+    , sortAlpha :: Bool
     } deriving (Show, Eq)
 
 -- |Redis default 'SortOpts'. Equivalent to omitting all optional parameters.
@@ -539,9 +542,9 @@ data DebugMode = Yes | Sync | No deriving (Show, Eq)
 
 
 instance RedisArg DebugMode where
-  encode Yes = "YES"
+  encode Yes  = "YES"
   encode Sync = "SYNC"
-  encode No = "NO"
+  encode No   = "NO"
 
 
 scriptDebug
@@ -605,8 +608,8 @@ data ReplyMode = On | Off | Skip deriving (Show, Eq)
 
 
 instance RedisArg ReplyMode where
-  encode On = "ON"
-  encode Off = "OFF"
+  encode On   = "ON"
+  encode Off  = "OFF"
   encode Skip = "SKIP"
 
 
@@ -823,8 +826,8 @@ xaddOpts key entryId fieldValues opts = sendRequest $
     where
         fieldArgs = concatMap (\(x,y) -> [x,y]) fieldValues
         optArgs = case opts of
-            NoArgs -> []
-            Maxlen max -> ["MAXLEN", encode max]
+            NoArgs           -> []
+            Maxlen max       -> ["MAXLEN", encode max]
             ApproxMaxlen max -> ["MAXLEN", "~", encode max]
 
 xadd
@@ -836,7 +839,7 @@ xadd
 xadd key entryId fieldValues = xaddOpts key entryId fieldValues NoArgs
 
 data StreamsRecord = StreamsRecord
-    { recordId :: ByteString
+    { recordId  :: ByteString
     , keyValues :: [(ByteString, ByteString)]
     } deriving (Show, Eq)
 
@@ -849,11 +852,11 @@ instance RedisResult StreamsRecord where
             decodeKeyValues :: [ByteString] -> [(ByteString, ByteString)]
             decodeKeyValues bs = map (\[x,y] -> (x,y)) $ chunksOfTwo bs
             chunksOfTwo (x:y:rest) = [x,y]:chunksOfTwo rest
-            chunksOfTwo _ = []
+            chunksOfTwo _          = []
     decode a = Left a
 
 data XReadOpts = XReadOpts
-    { block :: Maybe Integer
+    { block       :: Maybe Integer
     , recordCount :: Maybe Integer
     } deriving (Show, Eq)
 
@@ -870,7 +873,7 @@ defaultXreadOpts :: XReadOpts
 defaultXreadOpts = XReadOpts { block = Nothing, recordCount = Nothing }
 
 data XReadResponse = XReadResponse
-    { stream :: ByteString
+    { stream  :: ByteString
     , records :: [StreamsRecord]
     } deriving (Show, Eq)
 
@@ -988,9 +991,9 @@ xlen
 xlen stream = sendRequest ["XLEN", stream]
 
 data XPendingSummaryResponse = XPendingSummaryResponse
-    { numPendingMessages :: Integer
-    , smallestPendingMessageId :: ByteString
-    , largestPendingMessageId :: ByteString
+    { numPendingMessages           :: Integer
+    , smallestPendingMessageId     :: ByteString
+    , largestPendingMessageId      :: ByteString
     , numPendingMessagesByconsumer :: [(ByteString, Integer)]
     } deriving (Show, Eq)
 
@@ -1012,7 +1015,7 @@ instance RedisResult XPendingSummaryResponse where
                     decodedY <- decode y
                     return (decodedX, decodedY)
                 chunksOfTwo (x:y:rest) = (x,y):chunksOfTwo rest
-                chunksOfTwo _ = []
+                chunksOfTwo _          = []
     decode a = Left a
 
 xpendingSummary
@@ -1025,10 +1028,10 @@ xpendingSummary stream group consumer = sendRequest $ ["XPENDING", stream, group
     where consumerArg = maybe [] (\c -> [c]) consumer
 
 data XPendingDetailRecord = XPendingDetailRecord
-    { messageId :: ByteString
-    , consumer :: ByteString
+    { messageId                :: ByteString
+    , consumer                 :: ByteString
     , millisSinceLastDelivered :: Integer
-    , numTimesDelivered :: Integer
+    , numTimesDelivered        :: Integer
     } deriving (Show, Eq)
 
 instance RedisResult XPendingDetailRecord where
@@ -1053,10 +1056,10 @@ xpendingDetail stream group startId endId count consumer = sendRequest $
     where consumerArg = maybe [] (\c -> [c]) consumer
 
 data XClaimOpts = XClaimOpts
-    { xclaimIdle :: Maybe Integer
-    , xclaimTime :: Maybe Integer
+    { xclaimIdle       :: Maybe Integer
+    , xclaimTime       :: Maybe Integer
     , xclaimRetryCount :: Maybe Integer
-    , xclaimForce :: Bool
+    , xclaimForce      :: Bool
     } deriving (Show, Eq)
 
 defaultXClaimOpts :: XClaimOpts
@@ -1111,9 +1114,9 @@ xclaimJustIds stream group consumer minIdleTime opts messageIds = sendRequest $
     (xclaimRequest stream group consumer minIdleTime opts messageIds) ++ ["JUSTID"]
 
 data XInfoConsumersResponse = XInfoConsumersResponse
-    { xinfoConsumerName :: ByteString
+    { xinfoConsumerName               :: ByteString
     , xinfoConsumerNumPendingMessages :: Integer
-    , xinfoConsumerIdleTime :: Integer
+    , xinfoConsumerIdleTime           :: Integer
     } deriving (Show, Eq)
 
 instance RedisResult XInfoConsumersResponse where
@@ -1134,9 +1137,9 @@ xinfoConsumers
 xinfoConsumers stream group = sendRequest $ ["XINFO", "CONSUMERS", stream, group]
 
 data XInfoGroupsResponse = XInfoGroupsResponse
-    { xinfoGroupsGroupName :: ByteString
-    , xinfoGroupsNumConsumers :: Integer
-    , xinfoGroupsNumPendingMessages :: Integer
+    { xinfoGroupsGroupName              :: ByteString
+    , xinfoGroupsNumConsumers           :: Integer
+    , xinfoGroupsNumPendingMessages     :: Integer
     , xinfoGroupsLastDeliveredMessageId :: ByteString
     } deriving (Show, Eq)
 
@@ -1154,22 +1157,22 @@ xinfoGroups
     -> m (f [XInfoGroupsResponse])
 xinfoGroups stream = sendRequest ["XINFO", "GROUPS", stream]
 
-data XInfoStreamResponse 
+data XInfoStreamResponse
     = XInfoStreamResponse
-    { xinfoStreamLength :: Integer
-    , xinfoStreamRadixTreeKeys :: Integer
+    { xinfoStreamLength         :: Integer
+    , xinfoStreamRadixTreeKeys  :: Integer
     , xinfoStreamRadixTreeNodes :: Integer
-    , xinfoStreamNumGroups :: Integer
-    , xinfoStreamLastEntryId :: ByteString
-    , xinfoStreamFirstEntry :: StreamsRecord
-    , xinfoStreamLastEntry :: StreamsRecord
-    } 
+    , xinfoStreamNumGroups      :: Integer
+    , xinfoStreamLastEntryId    :: ByteString
+    , xinfoStreamFirstEntry     :: StreamsRecord
+    , xinfoStreamLastEntry      :: StreamsRecord
+    }
     | XInfoStreamEmptyResponse
-    { xinfoStreamLength :: Integer
-    , xinfoStreamRadixTreeKeys :: Integer
+    { xinfoStreamLength         :: Integer
+    , xinfoStreamRadixTreeKeys  :: Integer
     , xinfoStreamRadixTreeNodes :: Integer
-    , xinfoStreamNumGroups :: Integer
-    , xinfoStreamLastEntryId :: ByteString
+    , xinfoStreamNumGroups      :: Integer
+    , xinfoStreamLastEntryId    :: ByteString
     }
     deriving (Show, Eq)
 
@@ -1241,8 +1244,8 @@ xtrim
 xtrim stream opts = sendRequest $ ["XTRIM", stream] ++ optArgs
     where
         optArgs = case opts of
-            NoArgs -> []
-            Maxlen max -> ["MAXLEN", encode max]
+            NoArgs           -> []
+            Maxlen max       -> ["MAXLEN", encode max]
             ApproxMaxlen max -> ["MAXLEN", "~", encode max]
 
 inf :: RealFloat a => a
@@ -1350,16 +1353,16 @@ clusterNodes = sendRequest $ ["CLUSTER", "NODES"]
 data ClusterSlotsResponse = ClusterSlotsResponse { clusterSlotsResponseEntries :: [ClusterSlotsResponseEntry] } deriving (Show)
 
 data ClusterSlotsNode = ClusterSlotsNode
-    { clusterSlotsNodeIP :: ByteString
+    { clusterSlotsNodeIP   :: ByteString
     , clusterSlotsNodePort :: Int
-    , clusterSlotsNodeID :: ByteString
-    } deriving (Show)
+    , clusterSlotsNodeID   :: ByteString
+    }  deriving (Show)
 
 data ClusterSlotsResponseEntry = ClusterSlotsResponseEntry
     { clusterSlotsResponseEntryStartSlot :: Int
-    , clusterSlotsResponseEntryEndSlot :: Int
-    , clusterSlotsResponseEntryMaster :: ClusterSlotsNode
-    , clusterSlotsResponseEntryReplicas :: [ClusterSlotsNode]
+    , clusterSlotsResponseEntryEndSlot   :: Int
+    , clusterSlotsResponseEntryMaster    :: ClusterSlotsNode
+    , clusterSlotsResponseEntryReplicas  :: [ClusterSlotsNode]
     } deriving (Show)
 
 instance RedisResult ClusterSlotsResponse where
@@ -1379,7 +1382,9 @@ instance RedisResult ClusterSlotsResponseEntry where
     decode a = Left a
 
 instance RedisResult ClusterSlotsNode where
-    decode (MultiBulk (Just ((Bulk (Just clusterSlotsNodeIP)):(Integer port):(Bulk (Just clusterSlotsNodeID)):_))) = Right ClusterSlotsNode{..}
+    decode (MultiBulk (Just [Bulk (Just clusterSlotsNodeIP),Integer port,Bulk (Just clusterSlotsNodeID)])) = Right ClusterSlotsNode{..}
+        where clusterSlotsNodePort = fromInteger port
+    decode (MultiBulk (Just [Bulk (Just clusterSlotsNodeIP),Integer port,Bulk (Just clusterSlotsNodeID),_])) = Right ClusterSlotsNode{..}
         where clusterSlotsNodePort = fromInteger port
     decode a = Left a
 

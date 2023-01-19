@@ -1,40 +1,41 @@
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TupleSections     #-}
 module Database.Redis.Connection where
 
-import Control.Exception
-import qualified Control.Monad.Catch as Catch
-import Control.Monad.IO.Class(liftIO, MonadIO)
-import Control.Monad(when)
-import Control.Concurrent.MVar(MVar, newMVar)
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Char8 as Char8
-import Data.Functor(void)
-import qualified Data.IntMap.Strict as IntMap
-import Data.Pool(Pool, withResource, createPool, destroyAllResources)
-import Data.Typeable
-import qualified Data.Time as Time
-import Network.TLS (ClientParams)
-import qualified Network.Socket as NS
-import qualified Data.HashMap.Strict as HM
+import           Control.Concurrent.MVar           (MVar, newMVar)
+import           Control.Exception
+import           Control.Monad                     (when)
+import qualified Control.Monad.Catch               as Catch
+import           Control.Monad.IO.Class            (MonadIO, liftIO)
+import qualified Data.ByteString                   as B
+import qualified Data.ByteString.Char8             as Char8
+import           Data.Functor                      (void)
+import qualified Data.HashMap.Strict               as HM
+import qualified Data.IntMap.Strict                as IntMap
+import           Data.Pool                         (Pool, createPool,
+                                                    destroyAllResources,
+                                                    withResource)
+import qualified Data.Time                         as Time
+import           Data.Typeable
+import qualified Network.Socket                    as NS
+import           Network.TLS                       (ClientParams)
 
+import           Database.Redis.Cluster            (Node, Shard (..),
+                                                    ShardMap (..))
+import qualified Database.Redis.Cluster            as Cluster
+import qualified Database.Redis.ConnectionContext  as CC
+import           Database.Redis.Core               (Redis,
+                                                    runRedisClusteredInternal,
+                                                    runRedisInternal)
+import           Database.Redis.Protocol           (Reply (..))
 import qualified Database.Redis.ProtocolPipelining as PP
-import Database.Redis.Core(Redis, runRedisInternal, runRedisClusteredInternal)
-import Database.Redis.Protocol(Reply(..))
-import Database.Redis.Cluster(ShardMap(..), Node, Shard(..))
-import qualified Database.Redis.Cluster as Cluster
-import qualified Database.Redis.ConnectionContext as CC
 --import qualified Database.Redis.Cluster.Pipeline as ClusterPipeline
-import Database.Redis.Commands
-    ( ping
-    , select
-    , auth
-    , clusterSlots
-    , command
-    , ClusterSlotsResponse(..)
-    , ClusterSlotsResponseEntry(..)
-    , ClusterSlotsNode(..))
+import           Database.Redis.Commands           (ClusterSlotsNode (..),
+                                                    ClusterSlotsResponse (..),
+                                                    ClusterSlotsResponseEntry (..),
+                                                    auth, clusterSlots, command,
+                                                    ping, select)
 
 --------------------------------------------------------------------------------
 -- Connection
@@ -120,7 +121,7 @@ createConnection ConnInfo{..} = do
           round . (1000000 *) <$> connectTimeout
     conn <- PP.connect connectHost connectPort timeoutOptUs
     conn' <- case connectTLSParams of
-               Nothing -> return conn
+               Nothing        -> return conn
                Just tlsParams -> PP.enableTLS tlsParams conn
     PP.beginReceiving conn'
 
@@ -161,7 +162,7 @@ checkedConnect connInfo = do
 -- |Destroy all idle resources in the pool.
 disconnect :: Connection -> IO ()
 disconnect (NonClusteredConnection pool) = destroyAllResources pool
-disconnect (ClusteredConnection _ pool) = destroyAllResources pool
+disconnect (ClusteredConnection _ pool)  = destroyAllResources pool
 
 -- | Memory bracket around 'connect' and 'disconnect'.
 withConnect :: (Catch.MonadMask m, MonadIO m) => ConnectInfo -> (Connection -> m c) -> m c
@@ -235,5 +236,5 @@ refreshShardMap (Cluster.Connection nodeConns _ _ _) = do
     _ <- PP.beginReceiving pipelineConn
     slotsResponse <- runRedisInternal pipelineConn clusterSlots
     case slotsResponse of
-        Left e -> throwIO $ ClusterConnectError e
+        Left e      -> throwIO $ ClusterConnectError e
         Right slots -> shardMapFromClusterSlotsResponse slots

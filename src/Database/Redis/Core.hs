@@ -1,6 +1,12 @@
-{-# LANGUAGE OverloadedStrings, GeneralizedNewtypeDeriving, RecordWildCards,
-    MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, CPP,
-    DeriveDataTypeable, StandaloneDeriving #-}
+{-# LANGUAGE CPP                        #-}
+{-# LANGUAGE DeriveDataTypeable         #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE FunctionalDependencies     #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE StandaloneDeriving         #-}
 
 module Database.Redis.Core (
     Redis(), unRedis, reRedis,
@@ -11,19 +17,19 @@ module Database.Redis.Core (
     RedisEnv(..),
 ) where
 
-import Prelude
+import           Prelude
 #if __GLASGOW_HASKELL__ < 710
-import Control.Applicative
+import           Control.Applicative
 #endif
-import Control.Monad.Reader
-import qualified Data.ByteString as B
-import Data.IORef
-import Database.Redis.Core.Internal
-import Database.Redis.Protocol
+import           Control.Monad.Reader
+import qualified Data.ByteString                   as B
+import           Data.IORef
+import           Database.Redis.Cluster            (ShardMap)
+import qualified Database.Redis.Cluster            as Cluster
+import           Database.Redis.Core.Internal
+import           Database.Redis.Protocol
 import qualified Database.Redis.ProtocolPipelining as PP
-import Database.Redis.Types
-import Database.Redis.Cluster(ShardMap)
-import qualified Database.Redis.Cluster as Cluster
+import           Database.Redis.Types
 
 --------------------------------------------------------------------------------
 -- The Redis Monad

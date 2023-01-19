@@ -1,7 +1,7 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase         #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE RecordWildCards    #-}
 module Database.Redis.ConnectionContext (
     ConnectionContext(..)
   , ConnectTimeout(..)
@@ -17,29 +17,31 @@ module Database.Redis.ConnectionContext (
   , ioErrorToConnLost
 ) where
 
-import           Control.Concurrent (threadDelay)
+import           Control.Concurrent       (threadDelay)
 import           Control.Concurrent.Async (race)
-import Control.Monad(when)
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as LB
-import qualified Data.IORef as IOR
-import Control.Concurrent.MVar(newMVar, readMVar, swapMVar)
-import Control.Exception(bracketOnError, Exception, throwIO, try)
+import           Control.Concurrent.MVar  (newMVar, readMVar, swapMVar)
+import           Control.Exception        (Exception, bracketOnError, throwIO,
+                                           try)
+import           Control.Monad            (when)
+import qualified Data.ByteString          as B
+import qualified Data.ByteString.Lazy     as LB
+import           Data.Functor             (void)
+import qualified Data.IORef               as IOR
 import           Data.Typeable
-import Data.Functor(void)
-import qualified Network.Socket as NS
-import qualified Network.TLS as TLS
-import System.IO(Handle, hSetBinaryMode, hClose, IOMode(..), hFlush, hIsOpen)
-import System.IO.Error(catchIOError)
+import qualified Network.Socket           as NS
+import qualified Network.TLS              as TLS
+import           System.IO                (Handle, IOMode (..), hClose, hFlush,
+                                           hIsOpen, hSetBinaryMode)
+import           System.IO.Error          (catchIOError)
 
 data ConnectionContext = NormalHandle Handle | TLSContext TLS.Context
 
 instance Show ConnectionContext where
     show (NormalHandle _) = "NormalHandle"
-    show (TLSContext _) = "TLSContext"
+    show (TLSContext _)   = "TLSContext"
 
 data Connection = Connection
-    { ctx :: ConnectionContext
+    { ctx         :: ConnectionContext
     , lastRecvRef :: IOR.IORef (Maybe B.ByteString) }
 
 instance Show Connection where
@@ -159,4 +161,4 @@ disconnect (TLSContext ctx) = do
 
 flush :: ConnectionContext -> IO ()
 flush (NormalHandle h) = hFlush h
-flush (TLSContext c) = TLS.contextFlush c
+flush (TLSContext c)   = TLS.contextFlush c

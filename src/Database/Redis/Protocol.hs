@@ -1,25 +1,26 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Database.Redis.Protocol (Reply(..), reply, renderRequest) where
 
-import Prelude hiding (error, take)
+import           Prelude               hiding (error, take)
 #if __GLASGOW_HASKELL__ < 710
-import Control.Applicative
+import           Control.Applicative
 #endif
-import Control.DeepSeq
-import Scanner (Scanner)
-import qualified Scanner
-import Data.ByteString.Char8 (ByteString)
-import GHC.Generics
+import           Control.DeepSeq
+import           Control.Monad         (replicateM)
+import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as B
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Read as Text
-import Control.Monad (replicateM)
+import qualified Data.Text.Encoding    as Text
+import qualified Data.Text.Read        as Text
+import           GHC.Generics
+import           Scanner               (Scanner)
+import qualified Scanner
 
 -- |Low-level representation of replies from the Redis server.
 data Reply = SingleLine ByteString
+           | MultiLine [ByteString]
            | Error ByteString
            | Integer Integer
            | Bulk (Maybe ByteString)
@@ -27,6 +28,8 @@ data Reply = SingleLine ByteString
          deriving (Eq, Show, Generic)
 
 instance NFData Reply
+
+-- (MultiBulk (Just ([Bulk (Just cnm)])))
 
 ------------------------------------------------------------------------------
 -- Request
@@ -61,7 +64,7 @@ reply = do
     ':' -> integer
     '$' -> bulk
     '*' -> multi
-    _ -> fail "Unknown reply type"
+    _   -> fail "Unknown reply type"
 
 {-# INLINE string #-}
 string :: Scanner Reply
@@ -97,7 +100,7 @@ integral :: Integral i => Scanner i
 integral = do
   str <- line
   case Text.signed Text.decimal (Text.decodeUtf8 str) of
-    Left err -> fail (show err)
+    Left err     -> fail (show err)
     Right (l, _) -> return l
 
 {-# INLINE line #-}

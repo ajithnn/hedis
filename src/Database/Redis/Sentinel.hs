@@ -3,9 +3,9 @@
 {-# LANGUAGE NamedFieldPuns     #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE StrictData         #-}
 {-# LANGUAGE TypeApplications   #-}
-{-# LANGUAGE StandaloneDeriving #-}
 
 -- | "Database.Redis" like interface with connection through Redis Sentinel.
 --
@@ -42,9 +42,11 @@ module Database.Redis.Sentinel
   ) where
 
 import           Control.Concurrent
-import           Control.Exception     (Exception, IOException, evaluate, throwIO)
+import           Control.Exception     (Exception, IOException, evaluate,
+                                        throwIO)
 import           Control.Monad
-import           Control.Monad.Catch   (Handler (..), MonadCatch, catches, throwM)
+import           Control.Monad.Catch   (Handler (..), MonadCatch, catches,
+                                        throwM)
 import           Control.Monad.Except
 import           Data.ByteString       (ByteString)
 import qualified Data.ByteString       as BS
@@ -56,8 +58,8 @@ import           Data.Typeable         (Typeable)
 import           Data.Unique
 import           Network.Socket        (HostName)
 
-import           Database.Redis hiding (Connection, connect, runRedis)
-import qualified Database.Redis as Redis
+import           Database.Redis        hiding (Connection, connect, runRedis)
+import qualified Database.Redis        as Redis
 
 -- | Interact with a Redis datastore.  See 'Database.Redis.runRedis' for details.
 runRedis :: SentinelConnection

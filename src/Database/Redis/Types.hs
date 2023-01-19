@@ -1,6 +1,8 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE CPP, FlexibleInstances, TypeSynonymInstances,
-    OverloadedStrings #-}
+{-# LANGUAGE CPP                  #-}
+{-# LANGUAGE DeriveGeneric        #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 #if __GLASGOW_HASKELL__ < 710
 {-# LANGUAGE OverlappingInstances #-}
@@ -9,15 +11,16 @@
 module Database.Redis.Types where
 
 #if __GLASGOW_HASKELL__ < 710
-import Control.Applicative
+import           Control.Applicative
 #endif
-import Control.DeepSeq
-import Data.ByteString.Char8 (ByteString, pack)
-import qualified Data.ByteString.Lex.Fractional as F (readSigned, readExponential)
-import qualified Data.ByteString.Lex.Integral as I (readSigned, readDecimal)
-import GHC.Generics
+import           Control.DeepSeq
+import           Data.ByteString.Char8          (ByteString, pack)
+import qualified Data.ByteString.Lex.Fractional as F (readExponential,
+                                                      readSigned)
+import qualified Data.ByteString.Lex.Integral   as I (readDecimal, readSigned)
+import           GHC.Generics
 
-import Database.Redis.Protocol
+import           Database.Redis.Protocol
 
 
 ------------------------------------------------------------------------------
@@ -73,9 +76,9 @@ instance RedisResult Double where
 
 instance RedisResult Status where
     decode (SingleLine s) = Right $ case s of
-        "OK"     -> Ok
-        "PONG"   -> Pong
-        _        -> Status s
+        "OK"   -> Ok
+        "PONG" -> Pong
+        _      -> Status s
     decode r = Left r
 
 instance RedisResult RedisType where
@@ -107,7 +110,7 @@ instance
     (RedisResult a) => RedisResult [a] where
     decode (MultiBulk (Just rs)) = mapM decode rs
     decode r                     = Left r
- 
+
 instance (RedisResult a, RedisResult b) => RedisResult (a,b) where
     decode (MultiBulk (Just [x, y])) = (,) <$> decode x <*> decode y
     decode r                         = Left r

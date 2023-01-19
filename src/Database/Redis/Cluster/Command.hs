@@ -1,12 +1,13 @@
-{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 module Database.Redis.Cluster.Command where
 
-import Data.Char(toLower)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as Char8
-import qualified Data.HashMap.Strict as HM
-import Database.Redis.Types(RedisResult(decode))
-import Database.Redis.Protocol(Reply(..))
+import qualified Data.ByteString         as BS
+import qualified Data.ByteString.Char8   as Char8
+import           Data.Char               (toLower)
+import qualified Data.HashMap.Strict     as HM
+import           Database.Redis.Protocol (Reply (..))
+import           Database.Redis.Types    (RedisResult (decode))
 
 data Flag
     = Write
@@ -35,12 +36,12 @@ newtype InfoMap = InfoMap (HM.HashMap String CommandInfo)
 -- Represents the result of the COMMAND command, which returns information
 -- about the position of keys in a request
 data CommandInfo = CommandInfo
-    { name :: BS.ByteString
-    , arity :: AritySpec
-    , flags :: [Flag]
+    { name             :: BS.ByteString
+    , arity            :: AritySpec
+    , flags            :: [Flag]
     , firstKeyPosition :: Integer
-    , lastKeyPosition :: LastKeyPositionSpec
-    , stepCount :: Integer
+    , lastKeyPosition  :: LastKeyPositionSpec
+    , stepCount        :: Integer
     } deriving (Show)
 
 instance RedisResult CommandInfo where
@@ -63,29 +64,29 @@ instance RedisResult CommandInfo where
                 } where
         parseArity int = case int of
             i | i >= 0 -> Required i
-            i -> MinimumRequired $ abs i
+            i          -> MinimumRequired $ abs i
         parseFlag :: Reply -> Either Reply Flag
         parseFlag (SingleLine flag) = return $ case flag of
-            "write" -> Write
-            "readonly" -> ReadOnly
-            "denyoom" -> DenyOOM
-            "admin" -> Admin
-            "pubsub" -> PubSub
-            "noscript" -> NoScript
-            "random" -> Random
+            "write"           -> Write
+            "readonly"        -> ReadOnly
+            "denyoom"         -> DenyOOM
+            "admin"           -> Admin
+            "pubsub"          -> PubSub
+            "noscript"        -> NoScript
+            "random"          -> Random
             "sort_for_script" -> SortForScript
-            "loading" -> Loading
-            "stale" -> Stale
-            "skip_monitor" -> SkipMonitor
-            "asking" -> Asking
-            "fast" -> Fast
-            "movablekeys" -> MovableKeys
-            other -> Other other
+            "loading"         -> Loading
+            "stale"           -> Stale
+            "skip_monitor"    -> SkipMonitor
+            "asking"          -> Asking
+            "fast"            -> Fast
+            "movablekeys"     -> MovableKeys
+            other             -> Other other
         parseFlag bad = Left bad
         parseLastKeyPos :: Either Reply LastKeyPositionSpec
         parseLastKeyPos = return $ case lastKeyPos of
             i | i < 0 -> UnlimitedKeys (-i - 1)
-            i -> LastKeyPosition i
+            i         -> LastKeyPosition i
     -- since redis 6.0
     decode (MultiBulk (Just
         [ name@(Bulk (Just _))
@@ -97,7 +98,20 @@ instance RedisResult CommandInfo where
         , MultiBulk _  -- ACL categories
         ])) =
         decode (MultiBulk (Just [name, arity, flags, firstPos, lastPos, step]))
-
+    -- since redis 7.0
+    decode (MultiBulk (Just
+        [ name@(Bulk (Just _))
+        , arity@(Integer _)
+        , flags@(MultiBulk (Just _))
+        , firstPos@(Integer _)
+        , lastPos@(Integer _)
+        , step@(Integer _)
+        , MultiBulk _  -- ACL categories
+        , MultiBulk _  -- Tips
+        , MultiBulk _  -- Key specs
+        , MultiBulk _  -- subcommands
+        ])) =
+        decode (MultiBulk (Just [name, arity, flags, firstPos, lastPos, step]))
     decode e = Left e
 
 newInfoMap :: [CommandInfo] -> InfoMap
@@ -119,42 +133,45 @@ keysForRequest _ [] = Nothing
 keysForRequest' :: CommandInfo -> [BS.ByteString] -> Maybe [BS.ByteString]
 keysForRequest' info request
     | isMovable info =
-        parseMovable request
+        parseMovable info request
     | stepCount info == 0 =
         Just []
-    | otherwise = do
-        let possibleKeys = case lastKeyPosition info of
-                LastKeyPosition end -> take (fromEnum $ 1 + end - firstKeyPosition info) $ drop (fromEnum $ firstKeyPosition info) request
-                UnlimitedKeys end ->
-                    drop (fromEnum $ firstKeyPosition info) $
-                       take (length request - fromEnum end) request
-        return $ takeEvery (fromEnum $ stepCount info) possibleKeys
+    | otherwise = retrieveKeys info request
+
+retrieveKeys :: CommandInfo -> [BS.ByteString] -> Maybe [BS.ByteString]
+retrieveKeys info request = do
+  let possibleKeys = case lastKeyPosition info of
+          LastKeyPosition end -> take (fromEnum $ 1 + end - firstKeyPosition info) $ drop (fromEnum $ firstKeyPosition info) request
+          UnlimitedKeys end ->
+              drop (fromEnum $ firstKeyPosition info) $
+                 take (length request - fromEnum end) request
+  return $ takeEvery (fromEnum $ stepCount info) possibleKeys
 
 isMovable :: CommandInfo -> Bool
 isMovable CommandInfo{..} = MovableKeys `elem` flags
 
-parseMovable :: [BS.ByteString] -> Maybe [BS.ByteString]
-parseMovable ("SORT":key:_) = Just [key]
-parseMovable ("EVAL":_:rest) = readNumKeys rest
-parseMovable ("EVALSHA":_:rest) = readNumKeys rest
-parseMovable ("ZUNIONSTORE":_:rest) = readNumKeys rest
-parseMovable ("ZINTERSTORE":_:rest) = readNumKeys rest
-parseMovable ("XREAD":rest) = readXreadKeys rest
-parseMovable ("XREADGROUP":"GROUP":_:_:rest) = readXreadgroupKeys rest
-parseMovable _ = Nothing
+parseMovable :: CommandInfo -> [BS.ByteString] -> Maybe [BS.ByteString]
+parseMovable _ ("SORT":key:_)                  = Just [key]
+parseMovable _ ("EVAL":_:rest)                 = readNumKeys rest
+parseMovable _ ("EVALSHA":_:rest)              = readNumKeys rest
+parseMovable _ ("ZUNIONSTORE":_:rest)          = readNumKeys rest
+parseMovable _ ("ZINTERSTORE":_:rest)          = readNumKeys rest
+parseMovable _ ("XREAD":rest)                  = readXreadKeys rest
+parseMovable _ ("XREADGROUP":"GROUP":_:_:rest) = readXreadgroupKeys rest
+parseMovable info req                          = retrieveKeys info req
 
 readXreadKeys :: [BS.ByteString] -> Maybe [BS.ByteString]
 readXreadKeys ("COUNT":_:rest) = readXreadKeys rest
 readXreadKeys ("BLOCK":_:rest) = readXreadKeys rest
 readXreadKeys ("STREAMS":rest) = Just $ take (length rest `div` 2) rest
-readXreadKeys _ = Nothing
+readXreadKeys _                = Nothing
 
 readXreadgroupKeys :: [BS.ByteString] -> Maybe [BS.ByteString]
 readXreadgroupKeys ("COUNT":_:rest) = readXreadKeys rest
 readXreadgroupKeys ("BLOCK":_:rest) = readXreadKeys rest
-readXreadgroupKeys ("NOACK":rest) = readXreadKeys rest
+readXreadgroupKeys ("NOACK":rest)   = readXreadKeys rest
 readXreadgroupKeys ("STREAMS":rest) = Just $ take (length rest `div` 2) rest
-readXreadgroupKeys _ = Nothing
+readXreadgroupKeys _                = Nothing
 
 readNumKeys :: [BS.ByteString] -> Maybe [BS.ByteString]
 readNumKeys (rawNumKeys:rest) = do
@@ -165,7 +182,7 @@ readNumKeys _ = Nothing
 -- takeEvery 2 [1,2,3,4,5] ->[1,3,5]
 -- takeEvery 3 [1,2,3,4,5] ->[1,4]
 takeEvery :: Int -> [a] -> [a]
-takeEvery _ [] = []
+takeEvery _ []     = []
 takeEvery n (x:xs) = x : takeEvery n (drop (n-1) xs)
 
 readMaybe :: Read a => String -> Maybe a
